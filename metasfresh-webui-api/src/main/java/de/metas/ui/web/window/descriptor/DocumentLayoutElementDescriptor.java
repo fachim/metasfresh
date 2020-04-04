@@ -3,6 +3,7 @@ package de.metas.ui.web.window.descriptor;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Stream;
@@ -12,7 +13,6 @@ import org.slf4j.Logger;
 
 import com.google.common.base.Joiner;
 import com.google.common.base.MoreObjects;
-import com.google.common.base.Predicates;
 import com.google.common.collect.ImmutableSet;
 
 import de.metas.i18n.IMsgBL;
@@ -66,6 +66,7 @@ public final class DocumentLayoutElementDescriptor
 				.setCaption(firstField.getCaption())
 				// .setDescription(firstField.getDescription())
 				.setWidgetType(firstField.getWidgetType())
+				.setMaxLength(firstField.getFieldMaxLength())
 				.setWidgetSize(firstField.getWidgetSize());
 
 		for (final DocumentFieldDescriptor field : fields)
@@ -88,7 +89,7 @@ public final class DocumentLayoutElementDescriptor
 
 		final DocumentFieldDescriptor[] elementFields = Stream.of(fieldNames)
 				.map(fieldName -> entityDescriptor.getFieldOrNull(fieldName))
-				.filter(Predicates.notNull())
+				.filter(Objects::nonNull)
 				.toArray(size -> new DocumentFieldDescriptor[size]);
 
 		if (elementFields.length == 0)
@@ -108,6 +109,7 @@ public final class DocumentLayoutElementDescriptor
 	private final boolean allowShowPassword; // in case widgetType is Password
 	private final boolean multilineText; // in case widgetType is Text
 	private final int multilineTextLines; // in case widgetType is Text
+	private final int maxLength;
 	private final ButtonFieldActionDescriptor buttonActionDescriptor;
 	private final BarcodeScannerType barcodeScannerType;
 
@@ -139,6 +141,7 @@ public final class DocumentLayoutElementDescriptor
 		allowShowPassword = builder.isAllowShowPassword();
 		multilineText = builder.isMultilineText();
 		multilineTextLines = builder.getMultilineTextLines();
+		maxLength = builder.getMaxLength();
 		buttonActionDescriptor = builder.getButtonActionDescriptor();
 		barcodeScannerType = builder.getBarcodeScannerType();
 
@@ -222,6 +225,11 @@ public final class DocumentLayoutElementDescriptor
 		return multilineTextLines;
 	}
 
+	public int getMaxLength()
+	{
+		return maxLength;
+	}
+
 	public LayoutType getLayoutType()
 	{
 		return layoutType;
@@ -289,6 +297,7 @@ public final class DocumentLayoutElementDescriptor
 		private boolean _allowShowPassword = false; // in case widgetType is Password
 		private boolean _multilineText = false; // in case widgetType is Text
 		private int _multilineTextLines = 0; // in case widgetType is Text
+		private int _maxLength = 0; // in case of text widgets
 		private ButtonFieldActionDescriptor buttonActionDescriptor;
 		private BarcodeScannerType barcodeScannerType;
 
@@ -527,6 +536,17 @@ public final class DocumentLayoutElementDescriptor
 		private int getMultilineTextLines()
 		{
 			return _multilineTextLines;
+		}
+
+		public Builder setMaxLength(final int maxLength)
+		{
+			this._maxLength = maxLength;
+			return this;
+		}
+
+		private int getMaxLength()
+		{
+			return _maxLength;
 		}
 
 		public Builder setLayoutType(final LayoutType layoutType)
