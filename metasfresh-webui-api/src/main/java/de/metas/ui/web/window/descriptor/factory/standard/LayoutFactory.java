@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Stream;
 
@@ -26,7 +27,6 @@ import org.slf4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import com.google.common.base.MoreObjects;
-import com.google.common.base.Predicates;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 
@@ -431,6 +431,7 @@ public class LayoutFactory
 			if (!layoutElementBuilder.isWidgetTypeSet())
 			{
 				layoutElementBuilder.setWidgetType(field.getWidgetType());
+				layoutElementBuilder.setMaxLength(field.getFieldMaxLength());
 			}
 
 			if (!layoutElementBuilder.isWidgetSizeSet())
@@ -448,7 +449,7 @@ public class LayoutFactory
 			logger.trace("Skip layout element for {} because it has no fields: {}", uiElement, layoutElementBuilder);
 			return null;
 		}
-		
+
 		//
 		// Collect advanced fields
 		if (layoutElementBuilder.isAdvancedField())
@@ -646,19 +647,19 @@ public class LayoutFactory
 	}
 
 	private boolean isSupportQuickInput(final DocumentEntityDescriptor.Builder entityDescriptor)
-		{
+	{
 		if (!entityDescriptor.isAllowQuickInput())
 		{
 			return false;
 		}
 
 		return quickInputDescriptors.hasQuickInputEntityDescriptor(
-					entityDescriptor.getDocumentType(),
-					entityDescriptor.getDocumentTypeId(),
+				entityDescriptor.getDocumentType(),
+				entityDescriptor.getDocumentTypeId(),
 				entityDescriptor.getTableName(),
-					entityDescriptor.getDetailId(),
-					entityDescriptor.getSOTrx());
-		}
+				entityDescriptor.getDetailId(),
+				entityDescriptor.getSOTrx());
+	}
 
 	private final DocumentLayoutElementFieldDescriptor.Builder layoutElementField(final DocumentFieldDescriptor.Builder field)
 	{
@@ -701,7 +702,7 @@ public class LayoutFactory
 				.filter(uiElement -> uiElement.isDisplayed_SideList())
 				.sorted(Comparator.comparing(I_AD_UI_Element::getSeqNo_SideList))
 				.map(this::layoutElement)
-				.filter(Predicates.notNull()) // avoid NPE
+				.filter(Objects::nonNull) // avoid NPE
 				.map(layoutElement -> layoutElement.setGridElement())
 				.filter(uiElement -> uiElement != null)
 				.forEach(layoutBuilder::addElement);
@@ -751,6 +752,7 @@ public class LayoutFactory
 				.setDescription(null) // not relevant
 				.setLayoutTypeNone() // not relevant
 				.setWidgetType(field.getWidgetType())
+				.setMaxLength(field.getFieldMaxLength())
 				.addField(layoutElementField(field))
 				.build();
 	}

@@ -20,7 +20,7 @@ import org.adempiere.ad.trx.api.ITrx;
 import org.adempiere.ad.trx.api.ITrxManager;
 import org.adempiere.exceptions.AdempiereException;
 import org.adempiere.exceptions.DBException;
-import org.adempiere.exceptions.DBMoreThenOneRecordsFoundException;
+import org.adempiere.exceptions.DBMoreThanOneRecordsFoundException;
 import org.adempiere.model.InterfaceWrapperHelper;
 import org.adempiere.model.PlainContextAware;
 import org.adempiere.service.ClientId;
@@ -35,7 +35,7 @@ import org.slf4j.Logger;
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableList;
 
-import de.metas.cache.model.IModelCacheInvalidationService;
+import de.metas.cache.model.POCacheSourceModel;
 import de.metas.logging.LogManager;
 import de.metas.ui.web.exceptions.EntityNotFoundException;
 import de.metas.ui.web.session.UserSession;
@@ -251,7 +251,7 @@ public final class SqlDocumentsRepository implements DocumentsRepository
 		}
 		else if (documents.size() > 1)
 		{
-			throw new DBMoreThenOneRecordsFoundException("More than one record found for " + query + " on " + this
+			throw new DBMoreThanOneRecordsFoundException("More than one record found for " + query + " on " + this
 					+ "\n First " + limit + " records: " + Joiner.on("\n").join(documents.toList()));
 		}
 		else
@@ -632,7 +632,7 @@ public final class SqlDocumentsRepository implements DocumentsRepository
 
 		//
 		final TableRecordReference rootRecordReference = extractRootRecordReference(document);
-		IModelCacheInvalidationService.ATTR_RootRecordReference.setValue(po, rootRecordReference);
+		POCacheSourceModel.setRootRecordReference(po, rootRecordReference);
 
 		return po;
 	}

@@ -1,5 +1,18 @@
 package de.metas.ui.web.window.datatypes.json;
 
+import com.google.common.annotations.VisibleForTesting;
+import de.metas.ui.web.window.datatypes.LookupValue.StringLookupValue;
+import de.metas.ui.web.window.descriptor.DocumentFieldWidgetType;
+import de.metas.util.Check;
+import lombok.NonNull;
+import lombok.experimental.UtilityClass;
+import org.adempiere.exceptions.AdempiereException;
+import org.compiere.util.TimeUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import javax.annotation.Nullable;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -7,19 +20,6 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.function.Function;
-
-import javax.annotation.Nullable;
-
-import org.adempiere.exceptions.AdempiereException;
-import org.compiere.util.TimeUtil;
-
-import com.google.common.annotations.VisibleForTesting;
-
-import de.metas.ui.web.window.datatypes.LookupValue.StringLookupValue;
-import de.metas.ui.web.window.descriptor.DocumentFieldWidgetType;
-import de.metas.util.Check;
-import lombok.NonNull;
-import lombok.experimental.UtilityClass;
 
 /*
  * #%L
@@ -46,6 +46,8 @@ import lombok.experimental.UtilityClass;
 @UtilityClass
 public final class DateTimeConverters
 {
+	private static final Logger logger = LoggerFactory.getLogger(DateTimeConverters.class);
+
 	private static JSONDateConfig getConfig()
 	{
 		return JSONDateConfig.DEFAULT;
@@ -140,6 +142,27 @@ public final class DateTimeConverters
 		}
 	}
 
+	@NonNull
+	private static Timestamp fromPossibleJdbcTimestamp(@NonNull final String s)
+	{
+		return Timestamp.valueOf(s);
+	}
+
+	/**
+	 * This method tries to guess if the string has JDBC format, so it is parsable by Timestamp.valueOf(String)
+	 * <p>
+	 * IMPORTANT: possible does not mean 100% sure, however impossible means 100% sure this string is not in JDBC format.
+	 * <p>
+	 * Background: Saved User Query records generate the date as jdbc timestamp, and these fail for the formats we use.
+	 * They appear as follows: `2016-06-11 00:00:00.0`.
+	 *
+	 * @return true if the given string *might* be in JDBC format, false if the given string is NOT in JDBC format.
+	 */
+	private static boolean isPossibleJdbcTimestamp(@NonNull final String s)
+	{
+		return s.length() == 21 && s.charAt(10) == ' ';
+	}
+
 	public static LocalDate fromObjectToLocalDate(final Object valueObj)
 	{
 		return fromObjectTo(valueObj,
@@ -197,6 +220,7 @@ public final class DateTimeConverters
 				.toInstant();
 	}
 
+	@Nullable
 	private static <T> T fromObjectTo(
 			final Object valueObj,
 			@NonNull final Class<T> type,
@@ -218,6 +242,19 @@ public final class DateTimeConverters
 			if (json.isEmpty())
 			{
 				return null;
+			}
+			if (isPossibleJdbcTimestamp(json))
+			{
+				try
+				{
+					final Timestamp timestamp = fromPossibleJdbcTimestamp(json);
+					return fromObjectConverter.apply(timestamp);
+				}
+				catch (final Exception e)
+				{
+					logger.warn("Error while converting possible JDBC Timestamp `{}` to java.sql.Timestamp", json, e);
+					return fromJsonConverer.apply(json);
+				}
 			}
 			else
 			{
