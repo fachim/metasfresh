@@ -1,5 +1,7 @@
 package de.metas.ordercandidate.spi.impl;
 
+import static de.metas.util.lang.CoalesceUtil.firstGreaterThanZero;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Properties;
@@ -14,6 +16,7 @@ import org.compiere.util.TimeUtil;
 import org.slf4j.Logger;
 import org.springframework.stereotype.Component;
 
+import de.metas.i18n.AdMessageKey;
 import de.metas.i18n.IMsgBL;
 import de.metas.i18n.ITranslatableString;
 import de.metas.logging.LogManager;
@@ -63,7 +66,7 @@ import lombok.NonNull;
 @Component
 public class DefaultOLCandValidator implements IOLCandValidator
 {
-	private static final String MSG_NO_UOM_CONVERSION = "NoUOMConversion_Params";
+	private static final AdMessageKey MSG_NO_UOM_CONVERSION = AdMessageKey.of("NoUOMConversion_Params");
 	// services
 	private static final Logger logger = LogManager.getLogger(DefaultOLCandValidator.class);
 	private final IMsgBL msgBL = Services.get(IMsgBL.class);
@@ -107,6 +110,12 @@ public class DefaultOLCandValidator implements IOLCandValidator
 	@Override
 	public void validate(@NonNull final I_C_OLCand olCand)
 	{
+		if (firstGreaterThanZero(olCand.getM_Product_Override_ID(), olCand.getM_Product_ID()) <= 0)
+		{
+			final String msg = "@FillMandatory@ @M_Product_ID@";
+			throw new AdempiereException(msgBL.parseTranslatableString(msg));
+		}
+
 		handleUOMForTUIfRequired(olCand); // get QtyItemCapacity from de.metas.handlingunit if required
 
 		validateLocation(olCand);
@@ -226,7 +235,6 @@ public class DefaultOLCandValidator implements IOLCandValidator
 		final IPricingResult pricingResult = getPricingResult(olCand);
 		final BigDecimal priceInternal = pricingResult.getPriceStd();
 		final UomId priceUOMInternalId = pricingResult.getPriceUomId();
-
 
 		// note: the customer's price remains as it is in the "PriceEntered" column
 		// set the internal pricing info for the user's information

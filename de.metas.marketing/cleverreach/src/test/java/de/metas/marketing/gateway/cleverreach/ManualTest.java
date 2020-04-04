@@ -13,7 +13,6 @@ import org.assertj.core.api.Condition;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
-
 import com.google.common.collect.ImmutableList;
 
 import de.metas.marketing.base.model.Campaign;
@@ -51,6 +50,7 @@ import lombok.NonNull;
  * #L%
  */
 
+@SuppressWarnings({ "OptionalGetWithoutIsPresent", "SameParameterValue" })
 public class ManualTest
 {
 
@@ -61,7 +61,7 @@ public class ManualTest
 	@Before
 	public void init()
 	{
-  		final CleverReachConfig cleverReachConfig = CleverReachConfig.builder()
+		final CleverReachConfig cleverReachConfig = CleverReachConfig.builder()
 				.client_id("")
 				.login("")
 				.password("")
@@ -72,8 +72,9 @@ public class ManualTest
 
 	@Test
 	@Ignore
-	public void createUpdateDeleteCampagin()
+	public void createUpdateDeleteCampaign()
 	{
+		// add one campaign
 		final String nameOfCampaignToAdd = appendSystemTime("test-name1");
 		final Campaign campaignToAdd = Campaign.builder()
 				.name(nameOfCampaignToAdd)
@@ -82,16 +83,17 @@ public class ManualTest
 
 		final List<LocalToRemoteSyncResult> addedCampaignResults = cleverReachClient.syncCampaignsLocalToRemote(ImmutableList.of(campaignToAdd));
 		assertThat(addedCampaignResults).hasSize(1);
-		
+
 		final LocalToRemoteSyncResult localToRemoteSyncResult = addedCampaignResults.get(0);
 		assertThat(localToRemoteSyncResult.getLocalToRemoteStatus()).isEqualTo(LocalToRemoteStatus.INSERTED_ON_REMOTE);
 		assertThat(localToRemoteSyncResult.getSynchedDataRecord()).isInstanceOf(Campaign.class);
-		
+
 		final Campaign addedCampaign = Campaign.cast(localToRemoteSyncResult.getSynchedDataRecord());
 		assertThat(addedCampaign.getRemoteId()).isNotEmpty();
 		assertThat(addedCampaign.getName()).isEqualTo(nameOfCampaignToAdd);
 
-		final Campaign campaignToUpdate = addedCampaign.toBuilder().name("testcampaign-name2").build();
+		// now change its name
+		final Campaign campaignToUpdate = addedCampaign.toBuilder().name("testcampaign-name2").remoteId(addedCampaign.getRemoteId()).build();
 		final List<LocalToRemoteSyncResult> updatedCampaignResults = cleverReachClient.syncCampaignsLocalToRemote(ImmutableList.of(campaignToUpdate));
 		assertThat(updatedCampaignResults).hasSize(1);
 		assertThat(updatedCampaignResults.get(0).getLocalToRemoteStatus()).isEqualTo(LocalToRemoteStatus.UPDATED_ON_REMOTE);
@@ -117,9 +119,9 @@ public class ManualTest
 				.platformId(PLATFORM_ID).build();
 		final Iterator<Receiver> contactPersons = cleverReachClient.retrieveAllReceivers(campaign);
 
-		assertThat(contactPersons).isNotEmpty();
+		assertThat(contactPersons).hasNext();
 	}
-	
+
 	@Test
 	@Ignore
 	public void syncContactPersonsLocalToRemote()
@@ -135,18 +137,18 @@ public class ManualTest
 
 		assertThat(results)
 				.filteredOn(email("test2-invalidmail"))
-				.extracting(r -> r.getLocalToRemoteStatus())
+				.extracting(LocalToRemoteSyncResult::getLocalToRemoteStatus)
 				.containsOnlyOnce(LocalToRemoteStatus.ERROR);
 
 		assertThat(results)
 				.filteredOn(email("test4-invalidmail"))
-				.extracting(r -> r.getLocalToRemoteStatus())
+				.extracting(LocalToRemoteSyncResult::getLocalToRemoteStatus)
 				.containsOnlyOnce(LocalToRemoteStatus.ERROR);
 
 		assertThat(results)
 				.filteredOn(email("test10@newemail.com"))
 				.hasSize(1)
-				.extracting(r -> r.getLocalToRemoteStatus())
+				.extracting(LocalToRemoteSyncResult::getLocalToRemoteStatus)
 				.contains(LocalToRemoteStatus.UPSERTED_ON_REMOTE);
 
 		assertThat(results)
@@ -178,18 +180,18 @@ public class ManualTest
 				campaign, ImmutableList.of(person1, person2, person3, person4, person5));
 		assertThat(result)
 				.filteredOn(email("test1@email"))
-				.extracting(r -> r.getRemoteToLocalStatus())
+				.extracting(RemoteToLocalSyncResult::getRemoteToLocalStatus)
 				.containsOnlyOnce(RemoteToLocalStatus.NOT_YET_ADDED_TO_REMOTE_PLATFORM);
 
 		assertThat(result)
 				.filteredOn(email("test2@email"))
-				.extracting(r -> r.getRemoteToLocalStatus())
+				.extracting(RemoteToLocalSyncResult::getRemoteToLocalStatus)
 				.containsOnlyOnce(RemoteToLocalStatus.DELETED_ON_REMOTE_PLATFORM);
 
 		assertThat(result)
 				.filteredOn(email("real-email1"))
 				.hasSize(1)
-				.extracting(r -> r.getRemoteToLocalStatus())
+				.extracting(RemoteToLocalSyncResult::getRemoteToLocalStatus)
 				.contains(RemoteToLocalStatus.OBTAINED_REMOTE_ID);
 
 		assertThat(result)
@@ -204,7 +206,7 @@ public class ManualTest
 
 		assertThat(result).filteredOn(email("test1@newemail.com"))
 				.hasSize(1)
-				.extracting(r -> r.getRemoteToLocalStatus())
+				.extracting(RemoteToLocalSyncResult::getRemoteToLocalStatus)
 				.contains(RemoteToLocalStatus.OBTAINED_NEW_CONTACT_PERSON);
 
 		assertThat(result)

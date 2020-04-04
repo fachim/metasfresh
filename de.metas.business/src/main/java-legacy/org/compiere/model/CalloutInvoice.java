@@ -16,6 +16,8 @@
  *****************************************************************************/
 package org.compiere.model;
 
+import static de.metas.util.lang.CoalesceUtil.firstGreaterThanZero;
+
 import java.math.BigDecimal;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -32,12 +34,17 @@ import org.compiere.util.DB;
 import org.compiere.util.DisplayType;
 import org.compiere.util.Env;
 
+import de.metas.bpartner.BPartnerContactId;
 import de.metas.bpartner.service.BPartnerCreditLimitRepository;
 import de.metas.currency.CurrencyPrecision;
+import de.metas.document.IDocTypeDAO;
 import de.metas.logging.MetasfreshLastError;
 import de.metas.payment.PaymentRule;
+import de.metas.payment.paymentterm.IPaymentTermRepository;
+import de.metas.payment.paymentterm.PaymentTermId;
 import de.metas.pricing.PriceListId;
 import de.metas.pricing.service.IPriceListBL;
+import de.metas.pricing.service.IPriceListDAO;
 import de.metas.security.IUserRolePermissions;
 import de.metas.tax.api.ITaxBL;
 import de.metas.uom.IUOMDAO;
@@ -130,11 +137,11 @@ public class CalloutInvoice extends CalloutEngine
 				PaymentRule paymentRule = PaymentRule.ofNullableCode(rs.getString(isSOTrx ? "PaymentRule" : "PaymentRulePO"));
 				if (paymentRule != null)
 				{
-					final I_C_DocType invoiceDocType = invoice.getC_DocType() == null ? invoice.getC_DocTypeTarget()
-							: invoice.getC_DocType();
-
-					if (invoiceDocType != null)
+					final int docTypeId = firstGreaterThanZero(invoice.getC_DocType_ID(), invoice.getC_DocTypeTarget_ID());
+					if (docTypeId > 0)
 					{
+						final IDocTypeDAO docTypeDAO = Services.get(IDocTypeDAO.class);
+						final I_C_DocType invoiceDocType = docTypeDAO.getById(docTypeId);
 
 						final String docBaseType = invoiceDocType.getDocBaseType();
 
@@ -162,7 +169,8 @@ public class CalloutInvoice extends CalloutEngine
 
 				// Location
 				int bpartnerLocationId = rs.getInt("C_BPartner_Location_ID");
-				int contactUserId = rs.getInt("AD_User_ID");
+				BPartnerContactId contactUserId = BPartnerContactId.ofRepoIdOrNull(bPartnerID, rs.getInt("AD_User_ID"));
+
 
 				// overwritten by InfoBP selection - works only if InfoWindow
 				// was used otherwise creates error (uses last value, may belong to different BP)
@@ -174,15 +182,15 @@ public class CalloutInvoice extends CalloutEngine
 						bpartnerLocationId = locFromContextId;
 					}
 
-					final int contactFromContextId = calloutField.getTabInfoContextAsInt("AD_User_ID");
-					if (contactFromContextId > 0)
+					final BPartnerContactId contactFromContextId = BPartnerContactId.ofRepoIdOrNull(bPartnerID, calloutField.getTabInfoContextAsInt("AD_User_ID"));
+					if (contactFromContextId != null)
 					{
 						contactUserId = contactFromContextId;
 					}
 				}
 
 				invoice.setC_BPartner_Location_ID(bpartnerLocationId);
-				invoice.setAD_User_ID(contactUserId);
+				invoice.setAD_User_ID(BPartnerContactId.toRepoId(contactUserId));
 
 				// CreditAvailable
 				if (isSOTrx)
@@ -243,13 +251,14 @@ public class CalloutInvoice extends CalloutEngine
 	{
 		final I_C_Invoice invoice = calloutField.getModel(I_C_Invoice.class);
 
-		final I_C_PaymentTerm paymentTerm = invoice.getC_PaymentTerm();
-
-		if (paymentTerm == null)
+		final PaymentTermId paymentTermId = PaymentTermId.ofRepoIdOrNull(invoice.getC_PaymentTerm_ID());
+		if (paymentTermId == null)
 		{
 			// nothing to do
 			return NO_ERROR;
 		}
+
+		final I_C_PaymentTerm paymentTerm = Services.get(IPaymentTermRepository.class).getById(paymentTermId);
 
 		// TODO: Fix in next step (refactoring: Move the apply method from MPaymentTerm to a BL)
 		final MPaymentTerm pt = InterfaceWrapperHelper.getPO(paymentTerm);
@@ -900,11 +909,12 @@ public class CalloutInvoice extends CalloutEngine
 	{
 		final I_C_Invoice invoice = calloutField.getModel(I_C_Invoice.class);
 
-		final I_M_PriceList priceList = invoice.getM_PriceList();
-		if (priceList == null || priceList.getM_PriceList_ID() <= 0)
+		if (invoice.getM_PriceList_ID() <= 0)
 		{
 			return NO_ERROR;
 		}
+
+		final I_M_PriceList priceList = Services.get(IPriceListDAO.class).getById(invoice.getM_PriceList_ID());
 
 		// Tax Included
 		invoice.setIsTaxIncluded(priceList.isTaxIncluded());

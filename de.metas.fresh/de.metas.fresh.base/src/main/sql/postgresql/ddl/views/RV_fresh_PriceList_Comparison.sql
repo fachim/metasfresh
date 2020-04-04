@@ -20,8 +20,8 @@ SELECT
 	pp.IsSeasonFixedPrice,
 	hupip.Name AS ItemProductName,
 	pm.Name AS PackingMaterialName,
-	ROUND( COALESCE( ppa.PriceStd, pp.PriceStd ), 2 ) AS PriceStd,
-	ROUND (pp2.PriceStd, 2 ) AS AltPriceStd,
+	ROUND( COALESCE( ppa.PriceStd, pp.PriceStd ), coalesce(pl.priceprecision, 2) ) AS PriceStd,
+	ROUND (pp2.PriceStd, coalesce(pl2.priceprecision, 2) ) AS AltPriceStd,
 	CASE WHEN pp2.PriceStd IS NULL THEN 0 ELSE 1 END AS hasaltprice,
 	uom.UOMSymbol,
 	COALESCE(ppa.Attributes, '') as attributes,
@@ -44,9 +44,13 @@ SELECT
 	
 FROM M_ProductPrice pp
 
-INNER JOIN M_Product p ON pp.M_Product_ID = p.M_Product_ID AND p.isActive = 'Y'
-INNER JOIN C_BPartner bp ON TRUE
-INNER JOIN M_Product_Category pc ON p.M_Product_Category_ID = pc.M_Product_Category_ID AND pc.isActive = 'Y'
+	INNER JOIN M_Product p ON pp.M_Product_ID = p.M_Product_ID AND p.isActive = 'Y'
+	
+	/** Get all BPartner and Product combinations. 
+	 * IMPORTANT: Never use the query without BPartner Filter active
+	 */
+	INNER JOIN C_BPartner bp ON TRUE
+	INNER JOIN M_Product_Category pc ON p.M_Product_Category_ID = pc.M_Product_Category_ID AND pc.isActive = 'Y'
 INNER JOIN C_UOM uom ON pp.C_UOM_ID = uom.C_UOM_ID AND uom.isActive = 'Y'
 
 
