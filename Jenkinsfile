@@ -36,6 +36,7 @@ So if this is a "master" build, but it was invoked by a "feature-branch" build t
 		string(defaultValue: '',
 			description: 'If metasfresh-frontend calls this job, then it uses this variable to forward the metasfresh-e2e version which it build',
 			name: 'MF_METASFRESH_E2E_ARTIFACT_VERSION'),
+
 		string(defaultValue: '',
 			description: 'If metasfresh-frontend calls this job, then it uses this variable to forward the metasfresh-e2e docker image name which it build',
 			name: 'MF_METASFRESH_E2E_DOCKER_IMAGE'),
@@ -130,18 +131,26 @@ node('agent && linux')
 		final DockerConf msv3ServerDockerConf = reportDockerConf
 			.withArtifactName('de.metas.vertical.pharma.msv3.server')
 			.withWorkDir('de.metas.vertical.pharma.msv3.server/target/docker');
-		final String publishedMsv3ServerImageName =dockerBuildAndPush(msv3ServerDockerConf)
+		final String publishedMsv3ServerImageName = dockerBuildAndPush(msv3ServerDockerConf)
 
-		final DockerConf webuiApiDockerConf = materialDispoDockerConf
+		final DockerConf webuiApiDockerConf = reportDockerConf
 			.withArtifactName('metasfresh-webui-api')
 			.withWorkDir('metasfresh-webui-api/target/docker');
-		final String webuiApiImageName =dockerBuildAndPush(webuiApiDockerConf)
+		final String publishedWebuiApiImageName = dockerBuildAndPush(webuiApiDockerConf)
+
+		// postgres DB init container
+		final DockerConf dbInitDockerConf = reportDockerConf
+						.withArtifactName('metasfresh-db-init-pg-9-5')
+						.withWorkDir('dist/target/docker/db-init')
+		final String publishedDBInitDockerImageName = dockerBuildAndPush(dbInitDockerConf)
 
 		currentBuild.description= """${currentBuild.description}<p/>
 		<h3>Docker</h3>
 		This build created the following deployable docker images 
 		<ul>
 		<li><code>${publishedMsv3ServerImageName}</code></li>
+		<li><code>${publishedWebuiApiImageName}</code></li>
+		<li><code>${publishedDBInitDockerImageName}</code></li>
 		</ul>
 		<p>
 		This build also created the image <code>${publishedReportDockerImageName}</code> that can be used as <b>base image</b> for custom metasfresh-report docker images.
