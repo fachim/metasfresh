@@ -27,9 +27,6 @@
 		-->
 		<!-- 10.0.0 is the version that is build and installed to our local repo bei eclipse or if we run maven from the command line -->
 		<metasfresh.version>[1,10.0.0]</metasfresh.version>
-		<metasfresh-webui-api.version>[1,10.0.0]</metasfresh-webui-api.version>
-		<metasfresh-procurement-webui.version>[1,10.0.0]</metasfresh-procurement-webui.version>
-		<metasfresh-admin.version>[1,10.0.0]</metasfresh-admin.version>
 		<metasfresh-webui-frontend.version>[1,10.0.0]</metasfresh-webui-frontend.version>
 	</properties>
 

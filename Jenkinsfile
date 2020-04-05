@@ -44,8 +44,8 @@ So if this is a "master" build, but it was invoked by a "feature-branch" build t
 				description: 'If metasfresh-frontend calls this job, then it uses this variable to forward the metasfresh-edi docker image name which it build',
 				name: 'MF_METASFRESH_EDI_DOCKER_IMAGE'),
 
-		booleanParam(defaultValue: false, description: '''Set to true to only create the distributable files and assume that the underlying jars were already created and deployed''',
-			name: 'MF_SKIP_TO_DIST'),
+		// booleanParam(defaultValue: false, description: '''Set to true to only create the distributable files and assume that the underlying jars were already created and deployed''',
+		// 	name: 'MF_SKIP_TO_DIST'),
 	]),
 	pipelineTriggers([]),
 	buildDiscarder(logRotator(artifactDaysToKeepStr: '', artifactNumToKeepStr: '', daysToKeepStr: '', numToKeepStr: numberOfBuildsToKeepStr)) // keep the last $numberOfBuildsToKeepStr builds
@@ -92,76 +92,61 @@ node('agent && linux')
 			// Note: we can't build the "main" and "esb" stuff in parallel, because the esb stuff depends on (at least!) de.metas.printing.api
       stage('Set versions and build metasfresh')
       {
-				if(params.MF_SKIP_TO_DIST)
-				{
-					echo "params.MF_SKIP_TO_DIST=true so don't build metasfresh and esb jars and don't invoke downstream jobs"
-				}
-				else
-				{
-					nexusCreateRepoIfNotExists mvnConf.mvnDeployRepoBaseURL, mvnConf.mvnRepoName
+		nexusCreateRepoIfNotExists mvnConf.mvnDeployRepoBaseURL, mvnConf.mvnRepoName
 
-					// update the parent pom version
-					mvnUpdateParentPomVersion mvnConf
+		// update the parent pom version
+		mvnUpdateParentPomVersion mvnConf
 
-					// set the artifact version of everything below ${mvnConf.pomFile}
-					// processAllModules=true: also update those modules that have a parent version range!
-					sh "mvn --settings ${mvnConf.settingsFile} --file ${mvnConf.pomFile} --batch-mode -DnewVersion=${MF_VERSION} -DprocessAllModules=true -Dincludes=\"de.metas*:*\" ${mvnConf.resolveParams} ${VERSIONS_PLUGIN}:set"
+		// set the artifact version of everything below ${mvnConf.pomFile}
+		// processAllModules=true: also update those modules that have a parent version range!
+		sh "mvn --settings ${mvnConf.settingsFile} --file ${mvnConf.pomFile} --batch-mode -DnewVersion=${MF_VERSION} -DprocessAllModules=true -Dincludes=\"de.metas*:*\" ${mvnConf.resolveParams} ${VERSIONS_PLUGIN}:set"
+		// Set the metasfresh.version property from [1,10.0.0] to our current build version
+		// From the documentation: "Set a property to a given version without any sanity checks"; that's what we want here..sanity is clearly overated
+		sh "mvn --settings ${mvnConf.settingsFile} --file ${mvnConf.pomFile} --batch-mode -Dproperty=metasfresh.version -DnewVersion=${MF_VERSION} ${VERSIONS_PLUGIN}:set-property"
 
-					// Set the metasfresh.version property from [1,10.0.0] to our current build version
-					// From the documentation: "Set a property to a given version without any sanity checks"; that's what we want here..sanity is clearly overated
-					sh "mvn --settings ${mvnConf.settingsFile} --file ${mvnConf.pomFile} --batch-mode -Dproperty=metasfresh.version -DnewVersion=${MF_VERSION} ${VERSIONS_PLUGIN}:set-property"
+		// build and deploy
+		// maven.test.failure.ignore=true: continue if tests fail, because we want a full report.
+		// about -Dmetasfresh.assembly.descriptor.version: the versions plugin can't update the version of our shared assembly descriptor de.metas.assemblies. Therefore we need to provide the version from outside via this property
+		sh "mvn --settings ${mvnConf.settingsFile} --file ${mvnConf.pomFile} --batch-mode -Dmaven.test.failure.ignore=true -Dmetasfresh.assembly.descriptor.version=${MF_VERSION} ${mvnConf.resolveParams} ${mvnConf.deployParam} clean deploy"
 
-					// build and deploy
-					// maven.test.failure.ignore=true: continue if tests fail, because we want a full report.
-					// about -Dmetasfresh.assembly.descriptor.version: the versions plugin can't update the version of our shared assembly descriptor de.metas.assemblies. Therefore we need to provide the version from outside via this property
-					sh "mvn --settings ${mvnConf.settingsFile} --file ${mvnConf.pomFile} --batch-mode -Dmaven.test.failure.ignore=true -Dmetasfresh.assembly.descriptor.version=${MF_VERSION} ${mvnConf.resolveParams} ${mvnConf.deployParam} clean deploy"
-
-					publishJacocoReports(scmVars.GIT_COMMIT, 'codacy_project_token_for_metasfresh_repo')
-				} // if(params.MF_SKIP_TO_DIST)
-			}
-		} // withMaven
+		publishJacocoReports(scmVars.GIT_COMMIT, 'codacy_project_token_for_metasfresh_repo')
+	  } // stage
+	  } // withMaven
 	} // withEnv
 
 
 	stage('Build metasfresh docker image(s)')
 	{
-		if(params.MF_SKIP_TO_DIST)
-		{
-			echo "params.MF_SKIP_TO_DIST=true so don't create docker images"
-		}
-		else
-		{
-			final def misc = new de.metas.jenkins.Misc();
+		final def misc = new de.metas.jenkins.Misc();
 
-			final DockerConf reportDockerConf = new DockerConf(
-				'metasfresh-report', // artifactName
-				MF_UPSTREAM_BRANCH, // branchName
-				MF_VERSION, // versionSuffix
-				'de.metas.report/metasfresh-report-service-standalone/target/docker' // workDir
-			);
-			final String publishedReportDockerImageName = dockerBuildAndPush(reportDockerConf)
+		final DockerConf reportDockerConf = new DockerConf(
+			'metasfresh-report', // artifactName
+			MF_UPSTREAM_BRANCH, // branchName
+			MF_VERSION, // versionSuffix
+			'de.metas.report/metasfresh-report-service-standalone/target/docker' // workDir
+		);
+		final String publishedReportDockerImageName = dockerBuildAndPush(reportDockerConf)
 
-			final DockerConf msv3ServerDockerConf = reportDockerConf
-				.withArtifactName('de.metas.vertical.pharma.msv3.server')
-				.withWorkDir('de.metas.vertical.pharma.msv3.server/target/docker');
-			final String publishedMsv3ServerImageName =dockerBuildAndPush(msv3ServerDockerConf)
+		final DockerConf msv3ServerDockerConf = reportDockerConf
+			.withArtifactName('de.metas.vertical.pharma.msv3.server')
+			.withWorkDir('de.metas.vertical.pharma.msv3.server/target/docker');
+		final String publishedMsv3ServerImageName =dockerBuildAndPush(msv3ServerDockerConf)
 
-			final DockerConf webuiApiDockerConf = materialDispoDockerConf
-				.withArtifactName('metasfresh-webui-api')
-				.withWorkDir('metasfresh-webui-api/target/docker');
-			final String webuiApiImageName =dockerBuildAndPush(webuiApiDockerConf)
+		final DockerConf webuiApiDockerConf = materialDispoDockerConf
+			.withArtifactName('metasfresh-webui-api')
+			.withWorkDir('metasfresh-webui-api/target/docker');
+		final String webuiApiImageName =dockerBuildAndPush(webuiApiDockerConf)
 
-			currentBuild.description= """${currentBuild.description}<p/>
-			<h3>Docker</h3>
-			This build created the following deployable docker images 
-			<ul>
-			<li><code>${publishedMsv3ServerImageName}</code></li>
-			</ul>
-			<p>
-			This build also created the image <code>${publishedReportDockerImageName}</code> that can be used as <b>base image</b> for custom metasfresh-report docker images.
-			<p>
-			"""
-		} // if(params.MF_SKIP_TO_DIST)
+		currentBuild.description= """${currentBuild.description}<p/>
+		<h3>Docker</h3>
+		This build created the following deployable docker images 
+		<ul>
+		<li><code>${publishedMsv3ServerImageName}</code></li>
+		</ul>
+		<p>
+		This build also created the image <code>${publishedReportDockerImageName}</code> that can be used as <b>base image</b> for custom metasfresh-report docker images.
+		<p>
+		"""
 	} // stage
 	} // configFileProvider
 
@@ -182,67 +167,67 @@ currentBuild.description="""${currentBuild.description}<p/>
 // wait for the results, but don't block a node while waiting
 stage('Invoke downstream jobs')
 {
-	if(params.MF_SKIP_TO_DIST)
-	{
-		echo "params.MF_SKIP_TO_DIST is true so don't build metasfresh and esb jars and don't invoke downstream jobs";
+	// if(params.MF_SKIP_TO_DIST)
+	// {
+	// 	echo "params.MF_SKIP_TO_DIST is true so don't build metasfresh and esb jars and don't invoke downstream jobs";
 
-		// if params.MF_SKIP_TO_DIST is true, it might mean that we were invoked via a change in metasfresh-webui or metasfresh-webui-frontend..
-		// note: if params.MF_UPSTREAM_JOBNAME is set, it means that we were called from upstream and therefore also params.MF_UPSTREAM_ARTIFACT_VERSION is set
-		if(params.MF_UPSTREAM_JOBNAME == 'metasfresh-webui-frontend')
-		{
-			MF_ARTIFACT_VERSIONS['metasfresh-webui-frontend']=params.MF_UPSTREAM_ARTIFACT_VERSION;
-			echo "Set MF_ARTIFACT_VERSIONS.metasfresh-webui-frontend=${MF_ARTIFACT_VERSIONS['metasfresh-webui-frontend']}"
-		}
+	// 	// if params.MF_SKIP_TO_DIST is true, it might mean that we were invoked via a change in metasfresh-webui or metasfresh-webui-frontend..
+	// 	// note: if params.MF_UPSTREAM_JOBNAME is set, it means that we were called from upstream and therefore also params.MF_UPSTREAM_ARTIFACT_VERSION is set
+	// 	if(params.MF_UPSTREAM_JOBNAME == 'metasfresh-webui-frontend')
+	// 	{
+	// 		MF_ARTIFACT_VERSIONS['metasfresh-webui-frontend']=params.MF_UPSTREAM_ARTIFACT_VERSION;
+	// 		echo "Set MF_ARTIFACT_VERSIONS.metasfresh-webui-frontend=${MF_ARTIFACT_VERSIONS['metasfresh-webui-frontend']}"
+	// 	}
 
-		if(params.MF_UPSTREAM_JOBNAME == 'metasfresh-procurement-webui')
-		{
-			MF_ARTIFACT_VERSIONS['metasfresh-procurement-webui']=params.MF_UPSTREAM_ARTIFACT_VERSION;
-			echo "Set MF_ARTIFACT_VERSIONS.metasfresh-procurement-webui=${MF_ARTIFACT_VERSIONS['metasfresh-procurement-webui']}"
-		}
+	// 	if(params.MF_UPSTREAM_JOBNAME == 'metasfresh-procurement-webui')
+	// 	{
+	// 		MF_ARTIFACT_VERSIONS['metasfresh-procurement-webui']=params.MF_UPSTREAM_ARTIFACT_VERSION;
+	// 		echo "Set MF_ARTIFACT_VERSIONS.metasfresh-procurement-webui=${MF_ARTIFACT_VERSIONS['metasfresh-procurement-webui']}"
+	// 	}
 
-		// Anyways, if we don't invoke metasfresh-e2e ourselves (in this if's else block!), then take whatever we were invoked with.
-		// Might well be '', but we need to make sure not to invoke the downstream metasfresh-dist job with MF_METASFRESH_E2E_DOCKER_IMAGE = null,
-		// because that would fail the job with "java.lang.IllegalArgumentException: Null value not allowed as an environment variable: MF_METASFRESH_E2E_DOCKER_IMAGE"
-		MF_ARTIFACT_VERSIONS['metasfresh-e2e'] = params.MF_METASFRESH_E2E_ARTIFACT_VERSION
-		MF_DOCKER_IMAGES['metasfresh-e2e'] = params.MF_METASFRESH_E2E_DOCKER_IMAGE
-	}
-	else
-	{
+	// 	// Anyways, if we don't invoke metasfresh-e2e ourselves (in this if's else block!), then take whatever we were invoked with.
+	// 	// Might well be '', but we need to make sure not to invoke the downstream metasfresh-dist job with MF_METASFRESH_E2E_DOCKER_IMAGE = null,
+	// 	// because that would fail the job with "java.lang.IllegalArgumentException: Null value not allowed as an environment variable: MF_METASFRESH_E2E_DOCKER_IMAGE"
+	// 	MF_ARTIFACT_VERSIONS['metasfresh-e2e'] = params.MF_METASFRESH_E2E_ARTIFACT_VERSION
+	// 	MF_DOCKER_IMAGES['metasfresh-e2e'] = params.MF_METASFRESH_E2E_DOCKER_IMAGE
+	// }
+	// else
+	// {
 		MF_ARTIFACT_VERSIONS['metasfresh'] = MF_VERSION;
 
-		// params.MF_SKIP_TO_DIST == false, so invoke downstream jobs and get the build versions which came out of them
-		parallel (
-			metasfresh_procurement_webui: {
-				// yup, metasfresh-procurement-webui does share *some* code with this repo
-				final def procurementWebuiDownStreamBuildResult = invokeDownStreamJobs(
-					env.BUILD_NUMBER,
-					MF_UPSTREAM_BRANCH,
-					MF_ARTIFACT_VERSIONS['metasfresh-parent'],
-					MF_VERSION,
-					true, // wait=true
-					'metasfresh-procurement-webui'
-				);
-				MF_ARTIFACT_VERSIONS['metasfresh-procurement-webui'] = procurementWebuiDownStreamBuildResult.buildVariables.MF_VERSION;
+// 		// params.MF_SKIP_TO_DIST == false, so invoke downstream jobs and get the build versions which came out of them
+// 		parallel (
+// 			metasfresh_procurement_webui: {
+// 				// yup, metasfresh-procurement-webui does share *some* code with this repo
+// 				final def procurementWebuiDownStreamBuildResult = invokeDownStreamJobs(
+// 					env.BUILD_NUMBER,
+// 					MF_UPSTREAM_BRANCH,
+// 					MF_ARTIFACT_VERSIONS['metasfresh-parent'],
+// 					MF_VERSION,
+// 					true, // wait=true
+// 					'metasfresh-procurement-webui'
+// 				);
+// 				MF_ARTIFACT_VERSIONS['metasfresh-procurement-webui'] = procurementWebuiDownStreamBuildResult.buildVariables.MF_VERSION;
 
-				// note that as of now, metasfresh-procurement-webui does not publish a docker image
-				currentBuild.description = """${currentBuild.description}<p/>
-This build triggered the <b>metasfresh-procurement-webui</b> jenkins job <a href="${procurementWebuiDownStreamBuildResult.absoluteUrl}">${procurementWebuiDownStreamBuildResult.displayName}</a>
-				"""
-			}
-		);
+// 				// note that as of now, metasfresh-procurement-webui does not publish a docker image
+// 				currentBuild.description = """${currentBuild.description}<p/>
+// This build triggered the <b>metasfresh-procurement-webui</b> jenkins job <a href="${procurementWebuiDownStreamBuildResult.absoluteUrl}">${procurementWebuiDownStreamBuildResult.displayName}</a>
+// 				"""
+// 			}
+// 		);
 
 		// gh #968: note that there is no point invoking metasfresh-webui-frontend from here. The frontend doesn't depend on this repo.
 		// Therefore we will just get the latest webui-frontend later, when we need it.
 
 		// more to come: admin-webui
-	} // if(params.MF_SKIP_TO_DIST)
+	// } // if(params.MF_SKIP_TO_DIST)
 
 	// complement the MF_ARTIFACT_VERSIONS we did not set so far
 	MF_ARTIFACT_VERSIONS['metasfresh'] = MF_ARTIFACT_VERSIONS['metasfresh'] ?: "LATEST";
-	MF_ARTIFACT_VERSIONS['metasfresh-procurement-webui'] = MF_ARTIFACT_VERSIONS['metasfresh-procurement-webui'] ?: "LATEST";
+	// MF_ARTIFACT_VERSIONS['metasfresh-procurement-webui'] = MF_ARTIFACT_VERSIONS['metasfresh-procurement-webui'] ?: "LATEST";
 	MF_ARTIFACT_VERSIONS['metasfresh-webui-frontend'] = MF_ARTIFACT_VERSIONS['metasfresh-webui-frontend'] ?: "LATEST";
 
-	echo "Invoking downstream jobs 'metasfresh-dist' and 'metasfresh-dist-orgs' with preferred branch=${MF_UPSTREAM_BRANCH}"
+	// echo "Invoking downstream jobs 'metasfresh-dist' with preferred branch=${MF_UPSTREAM_BRANCH}"
 
 	// Run the downstream dist jobs in parallel.
 	// Wait for their result, because they will apply our SQL migration scripts and when one fails, we want this job to also fail.
