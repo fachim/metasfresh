@@ -100,12 +100,6 @@ Since we now work with a range, we now declare the dependencies here where range
 			<version>${metasfresh-webui-frontend.version}</version>
 			<type>tar.gz</type>
 		</dependency>
-		<dependency>
-			<groupId>de.metas.procurement</groupId>
-			<artifactId>de.metas.procurement.webui</artifactId>
-			<version>${metasfresh-procurement-webui.version}</version>
-			<type>jar</type>
-		</dependency>
 
 		<!-- https://github.com/metasfresh/metasfresh/issues/523 -->
 		<dependency>
@@ -775,10 +769,6 @@ note: when adding new records, please roughly order them by alphabet.
 						<configuration>
 							<outputDirectory>${project.build.directory}/dist/deploy/services</outputDirectory>
 							<includeArtifactIds>
-								<!-- gh metasfresh/metasfresh#1471 -->
-								metasfresh-admin,
-								<!-- gh metasfresh/metasfresh#523 and metasfresh/metasfresh#1471 -->
-								metasfresh-material-dispo-service,
 								<!-- gh metasfresh/metasfresh#968 -->
 								metasfresh-webui-api
 							</includeArtifactIds>
@@ -798,10 +788,6 @@ note: when adding new records, please roughly order them by alphabet.
 						<configuration>
 							<outputDirectory>${project.build.directory}/dist/deploy/services</outputDirectory>
 							<includeArtifactIds>
-								<!-- gh metasfresh/metasfresh#1471 -->
-								metasfresh-admin,
-								<!-- gh metasfresh/metasfresh#523 and metasfresh/metasfresh#1471 -->
-								metasfresh-material-dispo-service,
 								<!-- gh metasfresh/metasfresh#968 -->
 								metasfresh-webui-api
 							</includeArtifactIds>
