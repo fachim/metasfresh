@@ -91,7 +91,7 @@ Since we now work with a range, we now declare the dependencies here where range
 		<dependency>
 			<groupId>de.metas.ui.web</groupId>
 			<artifactId>metasfresh-webui-api</artifactId>
-			<version>${metasfresh-webui-api.version}</version>
+			<version>${metasfresh.version}</version>
 			<type>jar</type>
 		</dependency>
 		<dependency>
