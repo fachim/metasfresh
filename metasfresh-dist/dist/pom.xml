@@ -107,15 +107,6 @@ Since we now work with a range, we now declare the dependencies here where range
 			<type>jar</type>
 		</dependency>
 
-		<!-- https://github.com/metasfresh/metasfresh/issues/1471 -->
-		<dependency>
-			<groupId>de.metas.admin</groupId>
-			<artifactId>metasfresh-admin</artifactId>
-			<version>${metasfresh-admin.version}</version>
-			<type>jar</type>
-			<scope>provided</scope> <!-- we need this dependency here to update the version property-->
-		</dependency>
-
 		<!-- https://github.com/metasfresh/metasfresh/issues/523 -->
 		<dependency>
 			<groupId>de.metas.material</groupId>
