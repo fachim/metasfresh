@@ -145,7 +145,7 @@ node('agent && linux')
 		// postgres DB init container
 		final DockerConf dbInitDockerConf = reportDockerConf
 						.withArtifactName('metasfresh-db-init-pg-9-5')
-						.withWorkDir('dist/target/docker/db-init')
+						.withWorkDir('metasfresh-dist/dist/target/docker/db-init')
 		final String publishedDBInitDockerImageName = dockerBuildAndPush(dbInitDockerConf)
 
 		currentBuild.description= """${currentBuild.description}<p/>
